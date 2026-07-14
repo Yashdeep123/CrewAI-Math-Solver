@@ -1,14 +1,14 @@
 from inspect import ClassFoundException
 
+from crewai_tools import TavilySearchTool
 from crewai import Agent, LLM, Crew, Process, Task
 from crewai.utilities.types import LLMMessage
 from pydantic import BaseModel, Field
 from crewai.flow.flow import Flow, listen, start, router
-from crewai_tools import TavilySearchTool
 from dotenv import load_dotenv
 
 from tools.math_tools import derivative_tool, integral_tool, factor_tool, simplify_tool
-from prompts.prompts import classifier_prompt # type: ignore
+from prompts.prompts import classifier_prompt, concept_prompt # type: ignore
 
 load_dotenv()
 
@@ -52,13 +52,26 @@ class MathFlow(Flow[MathState]):
     @listen("concept")
     def concept_handler(self):
         concept = self.state.concept
-        return f"Conceptual Question: {concept}"
+        search_tool = TavilySearchTool(max_results=5,
+                                       search_depth="advanced")
+        agent = Agent(role="Expert Math teacher/tutor",
+                      llm=llm,
+                      goal="Answer conceptual math questions using reliable web sources when needed.",
+                      backstory="You are an experienced mathematics educator with deep knowledge "
+                      "of algebra, calculus, geometry, probability, and linear algebra. "
+                      "You explain concepts using intuitive examples and simple language.",
+                      tools=[search_tool],
+                      prompt_template=concept_prompt)
+        
+        result = agent.kickoff(concept)
+        self.state.answer = result.raw # type:ignore
+        return result.raw # type:ignore
     
     @listen("equation")
     def equation_handler(self):
         question = self.state.equation
 
-        # Agent 1: Solve using netwon API 1
+        # Agent 1: Solve using newton API 1
         agent = Agent(
             tools=[derivative_tool, integral_tool, simplify_tool, factor_tool],
             llm=llm,
@@ -107,7 +120,7 @@ If applicable, include the intermediate mathematical expression returned by the 
 
 
 flow = MathFlow()
-flow.state.question = "What is the derivation of x3?"
+flow.state.question = "Explain the intuition behind the chain rule in differentiation."
 flow.kickoff()
 
 print(f"Answer: {flow.state.answer}")
