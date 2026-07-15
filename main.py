@@ -1,6 +1,6 @@
 from inspect import ClassFoundException
 
-from crewai_tools import TavilySearchTool
+from crewai_tools import WebsiteSearchTool
 from crewai import Agent, LLM, Crew, Process, Task
 from crewai.utilities.types import LLMMessage
 from pydantic import BaseModel, Field
@@ -9,19 +9,9 @@ from dotenv import load_dotenv
 
 from tools.math_tools import derivative_tool, integral_tool, factor_tool, simplify_tool
 from prompts.prompts import classifier_prompt, concept_prompt # type: ignore
+from state import MathQuestionType, MathState
 
 load_dotenv()
-
-class MathState(BaseModel):
-    question: str = ""
-    concept : str = ""
-    equation : str = ""
-    answer: str = ""
-
-
-class MathQuestionType(BaseModel):
-    concept: str = Field(default="", description="Identifies as the question is of conceptual, theoretical or any of the math's terminology related question.")
-    equation: str = Field(default="", description="Identifies as the question is of equation type, requiring computational steps to solve.")
 
 llm = LLM(model="gpt-4o-mini")
 
@@ -52,8 +42,8 @@ class MathFlow(Flow[MathState]):
     @listen("concept")
     def concept_handler(self):
         concept = self.state.concept
-        search_tool = TavilySearchTool(max_results=5,
-                                       search_depth="advanced")
+        search_tool = WebsiteSearchTool()
+        
         agent = Agent(role="Expert Math teacher/tutor",
                       llm=llm,
                       goal="Answer conceptual math questions using reliable web sources when needed.",
